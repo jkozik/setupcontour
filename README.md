@@ -96,10 +96,29 @@ jkozik@knode202:~/contour$
 Notes about above:
 - Envoy is installed as a daemonset across each of the nodes of my cluster.  This is the data plane.  It carries the traffice
 - Contour is deployed redundantly as a deployment. This is the controller that parses the Ingress objects and configures Envoy.
-- The envoy service is the LoadBalancer port, specifically 80:30825/TCP,443:31400/TCP, that takes in (ingresses) traffice from outside of the cluster.
+- The envoy service is the LoadBalancer port, specifically `80:30825/TCP,443:31400/TCP`, that takes in (ingresses) traffice from outside of the cluster.
 
 ## Envoy Loadbalancer -> NodePort
 In my cluster, I am self hosted and I don't support the LoadBalancer type.  If I was using Contour on AWS, I would use AWS's loadbalancer service, but I have an external reverse proxy that routes traffic on my Home LAN to my cluster.  This external reverse proxy also routes traffic to other docker contains and good old web servers.  
 
 I need to reconfigure Envoy to expose a NodePort.  In the NodePort Service section of the [Deployment Options](https://projectcontour.io/docs/1.21/deploy-options/) documentation says `you can change the Envoy Service in the 02-service-envoy.yaml file and set type to NodePort.`
+```
+jkozik@knode202:~/contour.sav/contour/examples/contour$ kubectl get svc -n projectcontour envoy -ojson | jq '.spec.type'
+"LoadBalancer"
+
+jkozik@knode202:~/contour.sav/contour/examples/contour$  kubectl patch svc -n projectcontour envoy -p  '{"spec": {"type": "NodePort"}}'
+service/envoy patched
+
+jkozik@knode202:~/contour.sav/contour/examples/contour$ kubectl get svc -n projectcontour envoy -ojson | jq '.spec.type'
+"NodePort"
+
+jkozik@knode202:~/contour.sav/contour/examples/contour$ kubectl get svc -n projectcontour
+NAME      TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)                      AGE
+contour   ClusterIP   10.97.223.186   <none>        8001/TCP                     140m
+envoy     NodePort    10.100.173.66   <none>        80:30825/TCP,443:31400/TCP   140m
+```
+With simple patch, Contour is ready for testing.  
+
+## Test Basic Ingress
+Let's create a dummy application and verify that basic Ingress is working.  Borrowing from the Contour documentation, let's setup Kuard.
 
