@@ -122,3 +122,7 @@ With simple patch, Contour is ready for testing.
 ## Test Basic Ingress
 Let's create a dummy application and verify that basic Ingress is working.  Borrowing from the Contour documentation, let's setup Kuard.
 
+# References
+- [Deployment Options](https://projectcontour.io/docs/1.21/deploy-options/)
+- [Getting Started with Contour](https://projectcontour.io/getting-started/)
+- [Github repository: Contour is a Kubernetes ingress controller using Envoy proxy.](https://github.com/projectcontour/contour)
