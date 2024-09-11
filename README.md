@@ -318,6 +318,78 @@ Same output.  It took me a while to figure this out. One can go directly to a se
 But note also, the Ingress object specified in the kuard.yaml file did not have a path or host. That means all traffic to my Contour/Envoy ingress goes to the kuard service.  This needs to be fixed. 
 
 ### setup external domain kuard.kozik.net
+For me, a full end-to-end test of a ingress goes all the way to the Internet.  As is my usual practice, I defined a subdomain name, mapped it to my home LAN's external IP address and configured my reverse proxy to map the incoming traffic to my kubernetes cluster's Contour ingress NodePort.
+
+#### Setup a sub-domain in cloudflare
+I use Cloudflare as my DNS provider; the configuration looks like this.
+![image](https://github.com/user-attachments/assets/52f84721-6f73-43f8-8869-e8c2cd2bf22a)
+I setup kuard as a subdomain.  I map it to my home IP address.
+```
+jkozik@knode202:~/contour$ dig +noall +answer kuard.kozik.net
+kuard.kozik.net.        251     IN      A       69.243.XXX.XXX
+jkozik@knode202:~/contour$
+```
+All my incoming port 80 and 443 go to an Apache httpd reverse proxy.  I have setup a virtual host for kuard.kozik.net.  It works for both port 80 and 443.  I just show an excerpt here:
+##### kuard.kozik.net reverse proxy config  (partial)
+```
+[root@dell1 sites-enabled]# cat proxy.kuard.kozik.net-le-ssl.conf
+<IfModule mod_ssl.c>
+<VirtualHost *:443>
+ ServerName kuard.kozik.net
+ ServerAlias www.kuard.kozik.net
+
+ RewriteEngine on
+ #RewriteCond %{SERVER_NAME} =www.kuard.kozik.net
+ #ReWriteRule ^ https://kuard.kozik.net%{REQUEST_URI} [END,QSA,R=permanent]
+ RewriteCond %{HTTP:Upgrade} =websocket [NC]
+ RewriteRule /(.*)           ws://192.168.100.200:30825//$1 [P,L]
+ RewriteCond %{HTTP:Upgrade} !=websocket [NC]
+ RewriteRule /(.*)           http://192.168.100.200:30825/$1 [P,L]
+
+ Header always set X-Frame-Options SAMEORIGIN
+
+ ProxyPreserveHost On
+ ProxyPass /.well-known !
+ ProxyPass /  http://192.168.100.200:30825/
+ ProxyPassReverse /  http://192.168.100.200:30825/
+
+   ErrorLog logs/kuard.kozik.net-error_log
+   CustomLog logs/kuard.kozik.net-access_log combined
+
+SSLCertificateFile /etc/letsencrypt/live/kozik.net/cert.pem
+SSLCertificateKeyFile /etc/letsencrypt/live/kozik.net/privkey.pem
+Include /etc/letsencrypt/options-ssl-apache.conf
+SSLCertificateChainFile /etc/letsencrypt/live/kozik.net/chain.pem
+</VirtualHost>
+</IfModule>
+```
+Note:  Above the incoming https/443 traffic is terminated and redirected over port 80 to the envoy proxy on port 30825 of the kubernetes cluster.  I have decided to terminate all https traffic at the reverse proxy because I sometime have multiple destinations in my Home LAN that are not all on the kubernetes cluster. For example, I have some docker containers and some web pages on other segments of my home LAN.  Thus it is easier to terminate my SSL in one place.  I only have one IP address for the whole home LAN.
+
+Once this is setup, verify http://kuard.kozik.net...
+
+From the command line:
+```
+jkozik@knode202:~/contour$ curl https://kuard.kozik.net | head
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100  1790  100  1790    0     0  10272      0 --:--:-- --:--:-- --:--:-- 10346
+<!doctype html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+
+  <title>KUAR Demo</title>
+
+  <link rel="stylesheet" href="/static/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/static/css/styles.css">
+jkozik@knode202:~/contour$
+```
+and from the browser:
+![image](https://github.com/user-attachments/assets/7ffaf441-3f22-44ad-a5ce-67a640851ffd)
+
+Note: I have my reverse proxy to handle both http and https traffic.  http://kuard.kozik.net redirects to https://kuard.kozik.net.  That then redirects to http://192.168.100.200:30825 (envoy NodePort).
+
 
 # References
 - [Deployment Options](https://projectcontour.io/docs/1.21/deploy-options/)
