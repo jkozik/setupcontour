@@ -390,6 +390,23 @@ and from the browser:
 
 Note: I have my reverse proxy to handle both http and https traffic.  http://kuard.kozik.net redirects to https://kuard.kozik.net.  That then redirects to http://192.168.100.200:30825 (envoy NodePort).
 
+## Add a path to hello-world  https://kuard.kozik.net/hello-world
+I borrowed a `hello-world` applicatinon from [bhargavshah86/kube-test(https://github.com/skynet86/kube-test-dockerfile).  I want to spin it up and add a path to it in my new Contour Ingress
+### Spin up Hello World
+```
+jkozik@knode202:~/contour$ kubectl apply -f hello-world.yaml
+deployment.apps/hello-world-deployment created
+service/hello-world created
+
+jkozik@knode202:~/contour$ kubectl get svc,deployment,pod | grep hello
+service/hello-world       NodePort    10.101.234.115   <none>        80:30081/TCP   53s
+deployment.apps/hello-world-deployment   2/2     2            2           53s
+pod/hello-world-deployment-557bcf8cbf-6q9n5   1/1     Running     0                53s
+pod/hello-world-deployment-557bcf8cbf-vgj9p   1/1     Running     0                53s
+jkozik@knode202:~/contour$
+```
+Let's create a new Ingress manifest for hello-world
+
 
 # References
 - [Deployment Options](https://projectcontour.io/docs/1.21/deploy-options/)
