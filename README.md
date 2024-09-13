@@ -161,7 +161,6 @@ spec:
     app: kuard
   sessionAffinity: None
   type: ClusterIP
-```
 
 jkozik@knode202:~/contour$ cat kuard-ing.yaml
 apiVersion: networking.k8s.io/v1
@@ -211,7 +210,6 @@ Error from server (NotFound): pods "kuard" not found
 jkozik@knode202:~/contour$ kubectl get pods | grep kuard
 kuard-7cd5b94b5c-nsp6x                    1/1     Running     0                25m
 jkozik@knode202:~/contour$
-
 
 ```
 Note:  The Ingress was defined an ingress class of contour.  I already have one Ingress Controller installed with a class name "nginx".  I need to give my new one a class name also.
