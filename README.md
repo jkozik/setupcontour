@@ -316,6 +316,124 @@ and from the browser:
 
 Note: I have my reverse proxy to handle both http and https traffic.  http://kuard.kozik.net redirects to https://kuard.kozik.net.  That then redirects to http://192.168.100.200:30825 (envoy NodePort).
 
+# Configure Gateway API
+I have already loaded Contour/Envoy, but I only configured it for Ingress.  Ingress's are a little passe and I need to move to the Gateway API.  Following the steps [Deploy Contour with Gateway API enabled](https://projectcontour.io/docs/1.30/guides/gateway-api/), Option #1, I setup the Gateway building blocks
+## Gateway API CRD and GatewayClass
+```
+jkozik@knode202:~/contour$  kubectl apply -f https://raw.githubusercontent.com/projectcontour/contour/release-1.30/examples/gateway/00-crds.yaml
+customresourcedefinition.apiextensions.k8s.io/backendlbpolicies.gateway.networking.k8s.io created
+customresourcedefinition.apiextensions.k8s.io/backendtlspolicies.gateway.networking.k8s.io created
+customresourcedefinition.apiextensions.k8s.io/gatewayclasses.gateway.networking.k8s.io created
+customresourcedefinition.apiextensions.k8s.io/gateways.gateway.networking.k8s.io created
+customresourcedefinition.apiextensions.k8s.io/grpcroutes.gateway.networking.k8s.io created
+customresourcedefinition.apiextensions.k8s.io/httproutes.gateway.networking.k8s.io created
+customresourcedefinition.apiextensions.k8s.io/referencegrants.gateway.networking.k8s.io created
+customresourcedefinition.apiextensions.k8s.io/tcproutes.gateway.networking.k8s.io created
+customresourcedefinition.apiextensions.k8s.io/tlsroutes.gateway.networking.k8s.io created
+customresourcedefinition.apiextensions.k8s.io/udproutes.gateway.networking.k8s.io created
+jkozik@knode202:~/contour$ kubectl apply -f - <<EOF
+kind: GatewayClass
+apiVersion: gateway.networking.k8s.io/v1
+metadata:
+  name: contour
+spec:
+  controllerName: projectcontour.io/gateway-controller
+EOF
+gatewayclass.gateway.networking.k8s.io/contour created
+jkozik@knode202:~/contour$
+```
+### Create a Gateway
+```
+jkozik@knode202:~/contour$ kubectl apply -f - <<EOF
+kind: Namespace
+apiVersion: v1
+metadata:
+  name: projectcontour
+---
+kind: Gateway
+apiVersion: gateway.networking.k8s.io/v1
+metadata:
+  name: contour
+  namespace: projectcontour
+spec:
+  gatewayClassName: contour
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: All
+EOF
+namespace/projectcontour unchanged
+gateway.gateway.networking.k8s.io/contour created
+jkozik@knode202:~/contour$
+```
+### Tweak the configmap and restart contour
+```
+kozik@knode202:~/contour$ kubectl apply -f - <<EOF
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: contour
+  namespace: projectcontour
+data:
+  contour.yaml: |
+    gateway:
+      gatewayRef:
+        name: contour
+        namespace: projectcontour
+EOF
+configmap/contour configured
+
+jkozik@knode202:~/contour$ kubectl -n projectcontour rollout restart deployment/contour
+deployment.apps/contour restarted
+
+jkozik@knode202:~/contour$ kubectl get gateway -n projectcontour
+NAME      CLASS     ADDRESS   PROGRAMMED   AGE
+contour   contour             True         62s
+jkozik@knode202:~/contour$
+```
+## Setup HTTPRoute kuard.kozik.net -> service kuard
+Now that we have a gateway created, we can add routes to it.  The first one will be an HTTPRoute from https://kuard.kozik.net to the service kuard.  The reverse proxy that supports the URL was setup in the previous Ingress section.  Likewise kuard was previously configured.  
+
+I took an example HTTPRoute file and customized it and applied it below.
+```
+jkozik@knode202:~/contour$ kubectl delete ing kuard
+ingress.networking.k8s.io "kuard" deleted
+
+jkozik@knode202:~/contour$ cat kuard-httproute.yaml
+kind: HTTPRoute
+apiVersion: gateway.networking.k8s.io/v1
+metadata:
+  name: kuard
+  namespace: default
+  labels:
+    app: kuard
+spec:
+  parentRefs:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: contour
+    namespace: projectcontour
+  hostnames:
+  - "kuard.kozik.net"
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    backendRefs:
+    - kind: Service
+      name: kuard
+      port: 80
+
+jkozik@knode202:~/contour$ kubectl apply -f kuard-httproute.yaml
+httproute.gateway.networking.k8s.io/kuard created
+
+jkozik@knode202:~/contour$ kubectl get httproute
+NAME    HOSTNAMES             AGE
+kuard   ["kuard.kozik.net"]   11s
 
 
 # References
