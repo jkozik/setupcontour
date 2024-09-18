@@ -434,7 +434,7 @@ httproute.gateway.networking.k8s.io/kuard created
 jkozik@knode202:~/contour$ kubectl get httproute
 NAME    HOSTNAMES             AGE
 kuard   ["kuard.kozik.net"]   11s
-
+```
 
 # References
 - [Deployment Options](https://projectcontour.io/docs/1.21/deploy-options/)
