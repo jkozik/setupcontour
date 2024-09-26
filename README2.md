@@ -190,8 +190,71 @@ var pageContext = {"hostname":"kuard-7cd5b94b5c-tnftl","addrs":["10.10.75.196"],
 jkozik@knode202:~/contour$
 ```
 ### Access https://kuard.kozik.net from browser
-I setup a domain name on cloudflare and setup my reverse proxy (external to my cluster).  I have it pointing to http://192.168.100.200:31182.  From I browser, I verify it.
+I setup a domain name on cloudflare and setup my reverse proxy (external to my cluster).  I have it pointing to http://192.168.100.200:31182.  
+
+From a browser, I verify it.
 ![image](https://github.com/user-attachments/assets/c13c9054-5004-48de-bbde-ba8a44a05c56)
+
+## Other HttpRoutes using sub-domain host, path, filter, URLRewrite, replacePrefixMatch
+To get Ingress to work, I needed to use Annotations.  The Nginx Ingress came with a vast selection.  I wanted to verify that the HttpRoute object lets me recreate everything I used from Ingress.
+First, I need to be able to have separate routes for different subdomains.
+### k8s.kozik.net
+This deployment and httproute defines a Chuck Norris quote service at this URL.
+```
+jkozik@knode202:~/contour/deployment$ kubectl apply -f 02_deployment_chuck.yaml
+deployment.apps/chuck-norris-quote-service created
+service/chuck-norris-quote-service unchanged
+
+jkozik@knode202:~/contour$ cat 02-k8koziknet-httproute-host-chuck.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: chuck-host
+spec:
+  parentRefs:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: contour
+    namespace: projectcontour
+  hostnames:
+    - "k8s.kozik.net"
+  rules:
+  - backendRefs:
+    - name: chuck-norris-quote-service
+      port: 8080
+
+jkozik@knode202:~/contour$ kubectl apply -f 02-k8koziknet-httproute-host-chuck.yaml
+httproute.gateway.networking.k8s.io/chuck-host created
+
+jkozik@knode202:~/contour$ curl --verbose -H "Host: k8s.kozik.net" http://192.168.100.200:31182
+*   Trying 192.168.100.200:31182...
+* Connected to 192.168.100.200 (192.168.100.200) port 31182 (#0)
+> GET / HTTP/1.1
+> Host: k8s.kozik.net
+> User-Agent: curl/7.81.0
+> Accept: */*
+>
+* Mark bundle as not supporting multiuse
+< HTTP/1.1 200 OK
+< x-pod-name: chuck-norris-quote-service-645d6889f-jcc6b
+< x-pod-namespace: default
+< content-type: application/json
+< content-length: 73
+< x-envoy-upstream-service-time: 105
+< vary: Accept-Encoding
+< date: Thu, 26 Sep 2024 22:24:57 GMT
+< server: envoy
+<
+* Connection #0 to host 192.168.100.200 left intact
+{"message":"Chuck Norris rewrote the Google search engine from scratch."}
+jkozik@knode202:~/contour$
+```
+Note: The HTTPRoute is very straight forward.  The hosts k8s.kozik.net and kuard.kozik.net are both supported in two separate HTTPRoutes.
+
+### future.k8s.kozik.net with path filters
+I also deployed a Back-To-The-Future quotes application.  I setup an HTTPRoute to it through a sub-sub-domain, future.k8s.kozik.net.  Then I defined a path to the Chuck-Norris quotes application future.k8s.kozik.net/chuck.
+
+```
 
 
 # References
