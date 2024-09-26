@@ -75,6 +75,35 @@ NAMESPACE   NAME                                             CONTROLLER         
             gatewayclass.gateway.networking.k8s.io/contour   projectcontour.io/gateway-controller   True       4m8s
 jkozik@knode202:~/contour$
 ```
+### NodePort
+By default, Contour sets up Envoy to connect to a LoadBalancer.  I don't have one of those.  I have an external reverse proxy that wants to connect to my cluster through a NodePort.  Based on the [NodePort Service](https://projectcontour.io/docs/1.21/deploy-options/#:~:text=to%20run%20Contour.-,NodePort%20Service,-If%20your%20cluster) note, NodePort can easily be considered by editting the yaml for the envoy service. 
+```
+jkozik@knode202:~/contour$ kubectl get svc -n projectcontour
+NAME              TYPE           CLUSTER-IP       EXTERNAL-IP   PORT(S)        AGE
+contour-contour   ClusterIP      10.105.255.210   <none>        8001/TCP       17h
+envoy-contour     LoadBalancer   10.109.188.45    <pending>     80:31182/TCP   17h
+jkozik@knode202:~/contour$
+```
+Change LoadBalancer > NodePort
+```
+jkozik@knode202:~/contour$ kubectl edit svc envoy-contour -nprojectcontour
+service/envoy-contour edited
+jkozik@knode202:~/contour$ kubectl get svc -n projectcontour
+NAME              TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)        AGE
+contour-contour   ClusterIP   10.105.255.210   <none>        8001/TCP       17h
+envoy-contour     NodePort    10.109.188.45    <none>        80:31182/TCP   17h
+jkozik@knode202:~/contour$
+```
+## Verify, Install kuard service
+Using the [Demo app for Kubernetes Up and Running book](https://github.com/kubernetes-up-and-running/kuard) as a test app, let's verify that the basic Gateway API HttpRoute enabled by Contour
+### Deploy kuard
+```
+jkozik@knode202:~/contour/deployment$ kubectl apply -f kuard.yaml
+deployment.apps/kuard created
+service/kuard created
+```
+### Deploy httproute 
+The HttpRoute for an application 
 
 # References
 - [Using Gateway API with Contour](https://projectcontour.io/docs/main/guides/gateway-api/)
