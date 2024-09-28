@@ -253,9 +253,71 @@ Note: The HTTPRoute is very straight forward.  The hosts k8s.kozik.net and kuard
 
 ### future.k8s.kozik.net with path filters
 I also deployed a Back-To-The-Future quotes application.  I setup an HTTPRoute to it through a sub-sub-domain, future.k8s.kozik.net.  Then I defined a path to the Chuck-Norris quotes application future.k8s.kozik.net/chuck.
+### deploy back-to-the-future app
 
 ```
+jkozik@knode202:~/contour/deployment$ kubectl apply -f 02_deployment_back2future.yaml
+deployment.apps/back2future-quote-service created
+service/back2future-quote-service unchanged
 
+jkozik@knode202:~/contour/deployment$ curl --verbose -H "Host: future.k8s.kozik.net" http://192.168.100.200:31182
+*   Trying 192.168.100.200:31182...
+* Connected to 192.168.100.200 (192.168.100.200) port 31182 (#0)
+> GET / HTTP/1.1
+> Host: future.k8s.kozik.net
+> User-Agent: curl/7.81.0
+> Accept: */*
+>
+* Mark bundle as not supporting multiuse
+< HTTP/1.1 200 OK
+< x-pod-name: back2future-quote-service-56c5bbcd9b-jglvs
+< x-pod-namespace: default
+< content-type: application/json
+< content-length: 171
+< x-envoy-upstream-service-time: 170
+< vary: Accept-Encoding
+< date: Sat, 28 Sep 2024 02:07:44 GMT
+< server: envoy
+<
+* Connection #0 to host 192.168.100.200 left intact
+{"message":"Oh. One other thing. If you guys ever have kids, and one of them, when he's eight years old, accidentally sets fire to the living room rug... go easy on him."}
+jkozik@knode202:~/contour/deployment$
+```
+### Verify future.k8s.kozik.net/chuck
+The HttpRoute adds a match to a path /chuck.  Verify it, below
+```
+jkozik@knode202:~/contour$ curl --verbose -H "Host: future.k8s.kozik.net" http://192.168.100.200:31182/chuck
+*   Trying 192.168.100.200:31182...
+* Connected to 192.168.100.200 (192.168.100.200) port 31182 (#0)
+> GET /chuck HTTP/1.1
+> Host: future.k8s.kozik.net
+> User-Agent: curl/7.81.0
+> Accept: */*
+>
+* Mark bundle as not supporting multiuse
+< HTTP/1.1 200 OK
+< x-pod-name: chuck-norris-quote-service-645d6889f-jcc6b
+< x-pod-namespace: default
+< content-type: application/json
+< content-length: 83
+< x-envoy-upstream-service-time: 4
+< vary: Accept-Encoding
+< date: Sat, 28 Sep 2024 02:25:48 GMT
+< server: envoy
+<
+* Connection #0 to host 192.168.100.200 left intact
+{"message":"Chuck Norris can spawn threads that complete before they are started."}
+jkozik@knode202:~/contour$
+```
+Look at the file `05-httproute-host-future-path-chuck-hello.yaml` it has examples HttpRoutes using sub-domain host, path, filter, URLRewrite, replacePrefixMatch.
+
+I found examples hard to find.  In the references, I kept points to example HttpRoutes.  I found the Contour and the official Gateway API documentation a little vague.  Sorry. 
 
 # References
 - [Using Gateway API with Contour](https://projectcontour.io/docs/main/guides/gateway-api/)
+- [Configure an HttpRoute](https://projectcontour.io/docs/main/guides/gateway-api/#configure-an-httproute:~:text=Configure%20an%20HTTPRoute)
+- [HTTPRoute API Reference](https://www.gateway-api-controller.eks.aws.dev/dev/api-types/http-route/)
+- [Traefik & Kubernetes with Gateway API](https://doc.traefik.io/traefik/routing/providers/kubernetes-gateway/)
+- [HTTPRoute resource fields](https://yandex.cloud/en/docs/application-load-balancer/k8s-ref/http-route?utm_referrer=https%3A%2F%2Fyndx.auth.yandex.cloud%2F)
+- [Gateway API HttpRoute Spec](https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io%2fv1.HTTPRoute)
+- [Kubernetes Gateway API - Using HTTPRoute rules to rewrite URI paths](https://serverfault.com/questions/1145923/kubernetes-gateway-api-using-httproute-rules-to-rewrite-uri-paths)
